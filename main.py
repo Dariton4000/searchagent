@@ -124,10 +124,6 @@ def get_wikipedia_page(page: str) -> str:
 
     data = response.json()
     pages = data.get('query', {}).get('pages', {})
-    
-    model = lms.llm()
-    token_count = len(model.tokenize(page))
-    print("Token count:", token_count)
 
     if not pages:
         result = "No page found."
@@ -135,6 +131,10 @@ def get_wikipedia_page(page: str) -> str:
         page_data = next(iter(pages.values()))
         result = page_data.get('extract', "No content found for the given page.")
     
+    model = lms.llm()
+    token_count = len(model.tokenize(str(result))) # type: ignore
+    print("Token count:", token_count)
+
     # Note: Context will be displayed after the full response is complete
     return result
 
@@ -239,6 +239,7 @@ class FormattedPrinter:
 
 def researcher(query: str):
     model = lms.llm()
+    context_length = model.get_context_length()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     chat = lms.Chat(
         f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for additional context. When possible use Wikipedia as a source. After visiting a webpage, store any useful knowledge in the research knowledge base. Recall stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
@@ -246,8 +247,10 @@ def researcher(query: str):
 
     chat.add_user_message(f"Here is the research query given by the user: '{query}'")
 
+    current_tokens = len(model.tokenize(str(chat)))
+    remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
     printer = FormattedPrinter()
-    print("Bot: ", end="", flush=True)
+    print(f"{remaining_percentage}% Bot: ", end="", flush=True)
     model.act(
         chat,
         [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
@@ -267,8 +270,10 @@ def researcher(query: str):
            break
         chat.add_user_message(user_input)
         
+        current_tokens = len(model.tokenize(str(chat)))
+        remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
         printer = FormattedPrinter()
-        print("Bot: ", end="", flush=True)
+        print(f"{remaining_percentage}% Bot: ", end="", flush=True)
         model.act(
             chat,
             [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
