@@ -74,14 +74,15 @@ def duckduckgo_search(search_query: str) -> str:
 
     Args:
         query: The query to search for.
-        treat it like a Google search query
+        treat it like a Google search query, accepts special formats like "query" for only exact matches, query filetype:pdf for specific file types and so on.
     Returns:
-        The search results and crawlable links.
+        The search results with crawlable links.
     """
     print(f"\nSearching DuckDuckGo for: {search_query}...")
-    results = DDGS().text(search_query, max_results=3)
-    print(results)
-    return json.dumps(results)
+    results = DDGS().text(search_query, max_results=6)
+    filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
+    print(filtered_results)
+    return json.dumps(filtered_results)
 
 def crawl4ai(url: str):
     """Crawls a given URL and returns the text content.
