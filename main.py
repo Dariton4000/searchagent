@@ -10,6 +10,8 @@ import asyncio
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 import re
 import os
+from rich.console import Console
+from rich.markdown import Markdown
 
 
 
@@ -180,6 +182,7 @@ class FormattedPrinter:
     # and interruptions during streaming.
     def __init__(self):
         self.current_buffer = ""
+        self.bot_response_buffer = ""
         self.in_think_content_mode = False
         self.think_tag_open = "<think>"
         self.think_tag_close = "</think>"
@@ -215,6 +218,7 @@ class FormattedPrinter:
                 if open_tag_index != -1 and (open_tag_index < close_tag_index or close_tag_index == -1):
                     # Process the opening tag
                     text_to_print = self.current_buffer[:open_tag_index]
+                    self.bot_response_buffer += text_to_print
                     print(text_to_print, end="", flush=True)
                     print(self.grey_code, end="", flush=True)
                     self.current_buffer = self.current_buffer[open_tag_index + len(self.think_tag_open):]
@@ -222,10 +226,12 @@ class FormattedPrinter:
                 elif close_tag_index != -1:
                     # A stray closing tag is the next tag, remove it
                     text_to_print = self.current_buffer[:close_tag_index]
+                    self.bot_response_buffer += text_to_print
                     print(text_to_print, end="", flush=True)
                     self.current_buffer = self.current_buffer[close_tag_index + len(self.think_tag_close):]
                 else:
                     # No tags in buffer
+                    self.bot_response_buffer += self.current_buffer
                     print(self.current_buffer, end="", flush=True)
                     self.current_buffer = ""
                     return
@@ -235,14 +241,19 @@ class FormattedPrinter:
         if self.in_think_content_mode:
             print(self.reset_code, end="", flush=True)
             self.in_think_content_mode = False
-        print()
+        
+        print("\n\n--- Formatted Output ---")
+        console = Console()
+        console.print(Markdown(self.bot_response_buffer))
+        print("--- End Formatted Output ---\n")
+        self.bot_response_buffer = ""
 
 def researcher(query: str):
     model = lms.llm()
     context_length = model.get_context_length()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     chat = lms.Chat(
-        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for additional context. When possible use Wikipedia as a source. After visiting a webpage, store any useful knowledge in the research knowledge base. Recall stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
+        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for additional context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
     )
 
     chat.add_user_message(f"Here is the research query given by the user: '{query}'")
