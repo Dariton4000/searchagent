@@ -87,7 +87,9 @@ def duckduckgo_search(search_query: str) -> str:
 def crawl4ai(url: str):
     """Crawls a given URL and returns the text content.
         Use this tool to crawl a webpage after searching DuckDuckGo.
-        
+
+    Do not use this tool to crawl Wikipedia pages directly.
+
     Args:
         url: The URL to crawl.
         needs to start with http:// or https://
@@ -104,6 +106,7 @@ def get_wikipedia_page(page: str) -> str:
     
     Get content from a Wikipedia page.
     If no exact match is found, it will return a list of similar pages.
+    Use this instead of crawling Wikipedia pages directly.
 
     Args:
         page: Exact title of the Wikipedia page
