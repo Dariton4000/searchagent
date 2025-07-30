@@ -35,3 +35,6 @@ The script will activate the virtual environment and then execute the `main.py` 
 - `start.bat`: A script to run the research agent.
 - `reports/`: A directory where the generated reports are stored.
 - `research_knowledge/`: A directory used to store the knowledge base.
+
+Todo:
+- Load model function

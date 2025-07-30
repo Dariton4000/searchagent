@@ -65,8 +65,13 @@ async def crawl4aiasync(url: str):
         # ignore the warning about the return type, it is correct
         #counts tokens in the markdown content
         model = lms.llm()
+        # Context window details
+        current_tokens = len(model.tokenize(str(chat)))
         token_count = len(model.tokenize(str(result.markdown))) # type: ignore
-        print("Token count:", token_count)
+        context_length = model.get_context_length()
+        total_tokens = current_tokens + token_count
+        remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
+        print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
         return result.markdown  # type: ignore
 
 def duckduckgo_search(search_query: str) -> str:
@@ -138,8 +143,13 @@ def get_wikipedia_page(page: str) -> str:
         result = page_data.get('extract', "No content found for the given page.")
     
     model = lms.llm()
-    token_count = len(model.tokenize(str(result))) # type: ignore
-    print("Token count:", token_count)
+    # Context window details
+    current_tokens = len(model.tokenize(str(chat)))
+    token_count = len(model.tokenize(str(result)))
+    context_length = model.get_context_length()
+    total_tokens = current_tokens + token_count
+    remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
+    print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
 
     # Note: Context will be displayed after the full response is complete
     return result
@@ -152,7 +162,7 @@ def create_report(title: str, content: str, sources: list) -> str:
         content: The content of the extensive report.
         sources: A list of sources used in the report.
     Saves:
-        The final report in markdown format into reports/.
+        The final report in markdown format into reports/ always accessible to the user.
     Returns:
         The file name of the report for the AI to tell the user where to find it or an error message.
     """
@@ -223,7 +233,7 @@ class FormattedPrinter:
                     # Process the opening tag
                     text_to_print = self.current_buffer[:open_tag_index]
                     self.bot_response_buffer += text_to_print
-                    print(text_to_print, end="", flush=True)
+                    # print(text_to_print, end="", flush=True)
                     print(self.grey_code, end="", flush=True)
                     self.current_buffer = self.current_buffer[open_tag_index + len(self.think_tag_open):]
                     self.in_think_content_mode = True
@@ -231,12 +241,12 @@ class FormattedPrinter:
                     # A stray closing tag is the next tag, remove it
                     text_to_print = self.current_buffer[:close_tag_index]
                     self.bot_response_buffer += text_to_print
-                    print(text_to_print, end="", flush=True)
+                    # print(text_to_print, end="", flush=True)
                     self.current_buffer = self.current_buffer[close_tag_index + len(self.think_tag_close):]
                 else:
                     # No tags in buffer
                     self.bot_response_buffer += self.current_buffer
-                    print(self.current_buffer, end="", flush=True)
+                    # print(self.current_buffer, end="", flush=True)
                     self.current_buffer = ""
                     return
     
@@ -246,18 +256,17 @@ class FormattedPrinter:
             print(self.reset_code, end="", flush=True)
             self.in_think_content_mode = False
         
-        print("\n\n--- Formatted Output ---")
         console = Console()
         console.print(Markdown(self.bot_response_buffer))
-        print("--- End Formatted Output ---\n")
         self.bot_response_buffer = ""
 
 def researcher(query: str):
     model = lms.llm()
     context_length = model.get_context_length()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    global chat
     chat = lms.Chat(
-        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for additional context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
+        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
     )
 
     chat.add_user_message(f"Here is the research query given by the user: '{query}'")
