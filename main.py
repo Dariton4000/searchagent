@@ -168,7 +168,14 @@ def create_report(title: str, content: str, sources: list) -> str:
     """
 
     # Validate and sanitize title
-    
+    model = lms.llm()
+    # Context window details
+    current_tokens = len(model.tokenize(str(chat)))
+    context_length = model.get_context_length()
+    total_tokens = current_tokens
+    remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
+    print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
+
     sanitized_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
     if not sanitized_title:
         return "Error: Report title cannot be empty or contain only special characters."
