@@ -72,6 +72,8 @@ async def crawl4aiasync(url: str):
         total_tokens = current_tokens + token_count
         remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
         print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
+        if token_count >= 1000:
+            print("This will take some time, started at", datetime.now().strftime("%H:%M:%S"))
         return result.markdown  # type: ignore
 
 def duckduckgo_search(search_query: str) -> str:
@@ -150,8 +152,9 @@ def get_wikipedia_page(page: str) -> str:
     total_tokens = current_tokens + token_count
     remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
     print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
+    if token_count >= 1000:
+            print("This will take some time, started at", datetime.now().strftime("%H:%M:%S"))
 
-    # Note: Context will be displayed after the full response is complete
     return result
 
 def create_report(title: str, content: str, sources: list) -> str:
@@ -273,7 +276,7 @@ def researcher(query: str):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     global chat
     chat = lms.Chat(
-        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
+        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base, treat it like your permanent memory. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
     )
 
     chat.add_user_message(f"Here is the research query given by the user: '{query}'")
