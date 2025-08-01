@@ -83,7 +83,7 @@ def duckduckgo_search(search_query: str) -> str:
     Returns:
         The search results with crawlable links.
     """
-    print(f"\nSearching DuckDuckGo for: {search_query}...")
+    print(f"\nSearching DuckDuckGo for: {search_query}")
     results = DDGS().text(search_query, max_results=6)
     filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
     print(filtered_results)
@@ -101,7 +101,7 @@ def crawl4ai(url: str):
     Returns:
         The text content of the page in markdown format.
     """
-    print(f"Crawling {url}...")
+    print(f"Crawling {url}")
     return asyncio.run(crawl4aiasync(url))
 
 def get_wikipedia_page(page: str) -> str:
