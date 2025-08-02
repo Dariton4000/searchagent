@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 from ddgs import DDGS
 import asyncio
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
@@ -64,16 +65,6 @@ async def crawl4aiasync(url: str):
         # needs to be result.markdown to return the markdown content
         # ignore the warning about the return type, it is correct
         #counts tokens in the markdown content
-        model = lms.llm()
-        # Context window details
-        current_tokens = len(model.tokenize(str(chat)))
-        token_count = len(model.tokenize(str(result.markdown))) # type: ignore
-        context_length = model.get_context_length()
-        total_tokens = current_tokens + token_count
-        remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
-        print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
-        if token_count >= 1000:
-            print("This will take some time, started at", datetime.now().strftime("%H:%M:%S"))
         return result.markdown  # type: ignore
 
 def duckduckgo_search(search_query: str) -> str:
@@ -143,17 +134,7 @@ def get_wikipedia_page(page: str) -> str:
     else:
         page_data = next(iter(pages.values()))
         result = page_data.get('extract', "No content found for the given page.")
-    
-    model = lms.llm()
-    # Context window details
-    current_tokens = len(model.tokenize(str(chat)))
-    token_count = len(model.tokenize(str(result)))
-    context_length = model.get_context_length()
-    total_tokens = current_tokens + token_count
-    remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
-    print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
-    if token_count >= 1000:
-            print("This will take some time, started at", datetime.now().strftime("%H:%M:%S"))
+
 
     return result
 
@@ -199,6 +180,61 @@ def create_report(title: str, content: str, sources: list) -> str:
         error_message = f"Error writing report to file: {e}"
         print(error_message)
         return error_message
+
+
+class ProgressBarPrinter:
+    def __init__(self):
+        self.progress = 0
+        self.start_time = None
+
+    def update_progress(self, progress, _):
+        if self.start_time is None:
+            self.start_time = time.time()
+        # Convert progress to percentage if it's in 0-1 range
+        if progress <= 1.0:
+            self.progress = progress * 100
+        else:
+            self.progress = progress
+        self._print_progress_bar()
+
+    def _print_progress_bar(self):
+        bar_length = 50
+        # Ensure progress is within valid range
+        progress = max(0, min(100, self.progress))
+        filled_length = int(bar_length * progress / 100)
+        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+
+        elapsed_time = time.time() - (self.start_time if self.start_time else time.time())
+        
+        if progress == 100:
+            eta_str = "done"
+            completion_str = ""
+        elif progress > 0:
+            total_time = (elapsed_time / progress) * 100
+            remaining_time = total_time - elapsed_time
+            completion_time = datetime.now() + timedelta(seconds=remaining_time)
+            
+            eta_str = f"ETA: {int(remaining_time)}s"
+            completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
+        else: # progress is 0
+            eta_str = "ETA: N/A"
+            completion_str = ""
+
+        # Clear the line before printing to avoid overlapping text and format progress as integer
+        print(f"\r{' ' * 120}\r|{bar}| {int(progress)}% | {eta_str} | {completion_str}", end="", flush=True)
+    
+    def clear(self):
+        # Clear the progress bar from the terminal and move cursor to beginning of line
+        print(f"\r{' ' * 120}\r", end="", flush=True)
+
+def context_details():
+    # context window details
+    model = lms.llm()
+    token_count = len(model.tokenize(str(chat)))
+    context_length = model.get_context_length()
+    remaining_percentage = round(((context_length - token_count) / context_length) * 100)
+    print(f"{token_count}/{context_length} ({remaining_percentage}%)")
+    return
 
 class FormattedPrinter:
     # For reasoning content of the LLM, doesn't affect LLMs that don't reason
@@ -284,13 +320,19 @@ def researcher(query: str):
     current_tokens = len(model.tokenize(str(chat)))
     remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
     printer = FormattedPrinter()
+    progressprinter = ProgressBarPrinter()
     print(f"{remaining_percentage}% Bot: ", end="", flush=True)
     model.act(
         chat,
         [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
         on_message=chat.append,
         on_prediction_fragment=printer.print_fragment,
+        on_round_end=lambda round_index: context_details(),
+        on_prompt_processing_progress=progressprinter.update_progress,
     )
+    # Clear progress bar and reset cursor position before finalizing output
+    progressprinter.clear()
+    print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
     printer.finalize()
 
     # Now enter the interactive loop
@@ -307,13 +349,19 @@ def researcher(query: str):
         current_tokens = len(model.tokenize(str(chat)))
         remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
         printer = FormattedPrinter()
+        progressprinter = ProgressBarPrinter()
         print(f"{remaining_percentage}% Bot: ", end="", flush=True)
         model.act(
             chat,
             [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
             on_message=chat.append,
             on_prediction_fragment=printer.print_fragment,
+            on_round_end=lambda round_index: context_details(),
+            on_prompt_processing_progress=progressprinter.update_progress,
         )
+        # Clear progress bar and reset cursor position before finalizing output
+        progressprinter.clear()
+        print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
         printer.finalize()
 
 
