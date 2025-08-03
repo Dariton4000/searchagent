@@ -135,6 +135,8 @@ def get_wikipedia_page(page: str) -> str:
         page_data = next(iter(pages.values()))
         result = page_data.get('extract', "No content found for the given page.")
 
+    model = lms.llm()
+    print(f"Token count: {len(model.tokenize(str(result)))}")
 
     return result
 
