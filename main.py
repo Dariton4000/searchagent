@@ -1,5 +1,4 @@
-from pyexpat import model
-import lmstudio as lms
+from openai import OpenAI
 import json
 from pathlib import Path
 import requests
@@ -13,6 +12,13 @@ import re
 import os
 from rich.console import Console
 from rich.markdown import Markdown
+
+# Initialize OpenAI client
+client = OpenAI()  # API key should be set in OPENAI_API_KEY environment variable
+MODEL_NAME = "gpt-5-mini"  # Using GPT-5-mini as requested
+
+# Global conversation history
+messages = []
 
 
 
@@ -135,9 +141,6 @@ def get_wikipedia_page(page: str) -> str:
         page_data = next(iter(pages.values()))
         result = page_data.get('extract', "No content found for the given page.")
 
-    model = lms.llm()
-    print(f"Token count: {len(model.tokenize(str(result)))}")
-
     return result
 
 def create_report(title: str, content: str, sources: list) -> str:
@@ -154,14 +157,6 @@ def create_report(title: str, content: str, sources: list) -> str:
     """
 
     # Validate and sanitize title
-    model = lms.llm()
-    # Context window details
-    current_tokens = len(model.tokenize(str(chat)))
-    context_length = model.get_context_length()
-    total_tokens = current_tokens
-    remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
-    print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
-
     sanitized_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
     if not sanitized_title:
         return "Error: Report title cannot be empty or contain only special characters."
@@ -185,63 +180,17 @@ def create_report(title: str, content: str, sources: list) -> str:
 
 
 class ProgressBarPrinter:
+    """Simplified progress printer for OpenAI streaming"""
     def __init__(self):
-        self.progress = 0
-        self.start_time = None
-
-    def update_progress(self, progress, _):
-        if self.start_time is None:
-            self.start_time = time.time()
-        # Convert progress to percentage if it's in 0-1 range
-        if progress <= 1.0:
-            self.progress = progress * 100
-        else:
-            self.progress = progress
-        self._print_progress_bar()
-
-    def _print_progress_bar(self):
-        bar_length = 50
-        # Ensure progress is within valid range
-        progress = max(0, min(100, self.progress))
-        filled_length = int(bar_length * progress / 100)
-        bar = '█' * filled_length + '-' * (bar_length - filled_length)
-
-        elapsed_time = time.time() - (self.start_time if self.start_time else time.time())
-        
-        if progress == 100:
-            eta_str = "done"
-            completion_str = ""
-        elif progress > 0:
-            total_time = (elapsed_time / progress) * 100
-            remaining_time = total_time - elapsed_time
-            completion_time = datetime.now() + timedelta(seconds=remaining_time)
-            
-            eta_str = f"ETA: {int(remaining_time)}s"
-            completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
-        else: # progress is 0
-            eta_str = "ETA: N/A"
-            completion_str = ""
-
-        # Clear the line before printing to avoid overlapping text and format progress as integer
-        print(f"\r{' ' * 120}\r|{bar}| {int(progress)}% | {eta_str} | {completion_str}", end="", flush=True)
+        pass
     
     def clear(self):
-        # Clear the progress bar from the terminal and move cursor to beginning of line
-        print(f"\r{' ' * 120}\r", end="", flush=True)
+        # Clear any progress indicators
+        pass
 
-def context_details():
-    # context window details
-    model = lms.llm()
-    token_count = len(model.tokenize(str(chat)))
-    context_length = model.get_context_length()
-    remaining_percentage = round(((context_length - token_count) / context_length) * 100)
-    print(f"{token_count}/{context_length} ({remaining_percentage}%)")
-    return
 
 class FormattedPrinter:
-    # For reasoning content of the LLM, doesn't affect LLMs that don't reason
-    # This version is more robust and handles edge cases like stray tags
-    # and interruptions during streaming.
+    """Handles streaming output from OpenAI, including reasoning content"""
     def __init__(self):
         self.current_buffer = ""
         self.bot_response_buffer = ""
@@ -255,8 +204,13 @@ class FormattedPrinter:
         if os.name == 'nt':
             os.system('')
 
-    def print_fragment(self, fragment, round_index=0):
-        self.current_buffer += fragment.content
+    def print_fragment(self, fragment):
+        """Process a fragment of streaming content"""
+        if isinstance(fragment, str):
+            content = fragment
+        else:
+            content = fragment
+        self.current_buffer += content
         self._process_buffer()
 
     def _process_buffer(self):
@@ -308,63 +262,405 @@ class FormattedPrinter:
         console.print(Markdown(self.bot_response_buffer))
         self.bot_response_buffer = ""
 
+def get_tools_definitions():
+    """Define tools for OpenAI function calling"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "duckduckgo_search",
+                "description": "Searches DuckDuckGo for the given query and returns the results with crawlable links. Treat it like a Google search query, accepts special formats like 'query' for only exact matches, query filetype:pdf for specific file types and so on.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "search_query": {
+                            "type": "string",
+                            "description": "The query to search for"
+                        }
+                    },
+                    "required": ["search_query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_knowledge",
+                "description": "Adds new knowledge for later use to the research knowledge base.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "knowledge": {
+                            "type": "string",
+                            "description": "The knowledge to save"
+                        }
+                    },
+                    "required": ["knowledge"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_all_knowledge",
+                "description": "Returns all entries in the knowledge base.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "crawl4ai",
+                "description": "Crawls a given URL and returns the text content in markdown format. Use this tool to crawl a webpage after searching DuckDuckGo. Do not use this tool to crawl Wikipedia pages directly.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "The URL to crawl (must start with http:// or https://)"
+                        }
+                    },
+                    "required": ["url"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_wikipedia_page",
+                "description": "Get content from a Wikipedia page as plain text. If no exact match is found, it will return a list of similar pages. Use this instead of crawling Wikipedia pages directly.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "page": {
+                            "type": "string",
+                            "description": "Exact title of the Wikipedia page"
+                        }
+                    },
+                    "required": ["page"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_report",
+                "description": "Generates a final report in markdown format. Only use this tool after all extensive research is done. The report will be saved to the reports/ directory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "The title of the report (will be used for the file name)"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The content of the extensive report"
+                        },
+                        "sources": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "A list of sources used in the report"
+                        }
+                    },
+                    "required": ["title", "content", "sources"]
+                }
+            }
+        }
+    ]
+
+def execute_function(function_name: str, arguments: dict):
+    """Execute a function call from OpenAI"""
+    function_map = {
+        "duckduckgo_search": duckduckgo_search,
+        "save_knowledge": save_knowledge,
+        "get_all_knowledge": get_all_knowledge,
+        "crawl4ai": crawl4ai,
+        "get_wikipedia_page": get_wikipedia_page,
+        "create_report": create_report
+    }
+    
+    func = function_map.get(function_name)
+    if func:
+        try:
+            result = func(**arguments)
+            return str(result)
+        except Exception as e:
+            return f"Error executing {function_name}: {str(e)}"
+    else:
+        return f"Function {function_name} not found"
+
 def researcher(query: str):
-    model = lms.llm()
-    context_length = model.get_context_length()
+    global messages
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    global chat
-    chat = lms.Chat(
-        f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base, treat it like your permanent memory. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
-    )
-
-    chat.add_user_message(f"Here is the research query given by the user: '{query}'")
-
-    current_tokens = len(model.tokenize(str(chat)))
-    remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
+    
+    system_message = f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base, treat it like your permanent memory. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
+    
+    messages = [
+        {"role": "user", "content": f"Here is the research query given by the user: '{query}'\n\n{system_message}"}
+    ]
+    
+    tools = get_tools_definitions()
     printer = FormattedPrinter()
     progressprinter = ProgressBarPrinter()
-    print(f"{remaining_percentage}% Bot: ", end="", flush=True)
-    model.act(
-        chat,
-        [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
-        on_message=chat.append,
-        on_prediction_fragment=printer.print_fragment,
-        on_round_end=lambda round_index: context_details(),
-        on_prompt_processing_progress=progressprinter.update_progress,
-    )
-    # Clear progress bar and reset cursor position before finalizing output
+    
+    print("Bot: ", end="", flush=True)
+    
+    max_iterations = 30  # Prevent infinite loops
+    iteration = 0
+    reasoning_summaries = []  # Store reasoning summaries for later reference
+    
+    while iteration < max_iterations:
+        iteration += 1
+        
+        try:
+            # Call OpenAI API with streaming - using reasoning model approach
+            # For reasoning models like gpt-5-mini, we enable reasoning output
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                tools=tools,
+                stream=True,
+                # Enable reasoning/thinking output for reasoning models
+                stream_options={"include_usage": True}
+            )
+            
+            full_content = ""
+            reasoning_content = ""
+            tool_calls = []
+            current_tool_call = None
+            
+            # Process streaming response
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                    
+                delta = chunk.choices[0].delta
+                
+                # Handle reasoning/thinking content (for reasoning models)
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    reasoning_content += delta.reasoning_content
+                    # Print reasoning in gray
+                    print(f"\033[90m{delta.reasoning_content}\033[0m", end="", flush=True)
+                
+                # Handle content streaming
+                if delta.content:
+                    full_content += delta.content
+                    printer.print_fragment(delta.content)
+                
+                # Handle tool calls
+                if delta.tool_calls:
+                    for tc_chunk in delta.tool_calls:
+                        if tc_chunk.index is not None:
+                            # New tool call or existing one
+                            while len(tool_calls) <= tc_chunk.index:
+                                tool_calls.append({
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""}
+                                })
+                            current_tool_call = tool_calls[tc_chunk.index]
+                            
+                            if tc_chunk.id:
+                                current_tool_call["id"] = tc_chunk.id
+                            if tc_chunk.function:
+                                if tc_chunk.function.name:
+                                    current_tool_call["function"]["name"] = tc_chunk.function.name
+                                if tc_chunk.function.arguments:
+                                    current_tool_call["function"]["arguments"] += tc_chunk.function.arguments
+                
+                # Check if we're done
+                if chunk.choices[0].finish_reason == "stop":
+                    break
+                elif chunk.choices[0].finish_reason == "tool_calls":
+                    break
+            
+            # Store reasoning summary if available
+            if reasoning_content:
+                reasoning_summaries.append({
+                    "iteration": iteration,
+                    "reasoning": reasoning_content,
+                    "timestamp": datetime.now().isoformat()
+                })
+                # Save reasoning summary to file for reference
+                reasoning_file = Path("research_knowledge") / "reasoning_summaries.json"
+                with reasoning_file.open("w") as f:
+                    json.dump(reasoning_summaries, f, indent=2)
+                print(f"\n[Reasoning summary saved]")
+            
+            # Finalize the current response
+            if full_content:
+                printer.finalize()
+                messages.append({"role": "assistant", "content": full_content})
+            
+            # Process tool calls if any
+            if tool_calls:
+                # Add assistant message with tool calls
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": tool_calls
+                })
+                
+                # Execute each tool call
+                for tool_call in tool_calls:
+                    function_name = tool_call["function"]["name"]
+                    try:
+                        arguments = json.loads(tool_call["function"]["arguments"])
+                    except json.JSONDecodeError:
+                        arguments = {}
+                    
+                    print(f"\n[Calling: {function_name}]")
+                    result = execute_function(function_name, arguments)
+                    
+                    # Add tool result to messages
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": result
+                    })
+                
+                print("\nBot: ", end="", flush=True)
+                # Continue to next iteration to process tool results
+                continue
+            else:
+                # No more tool calls, we're done
+                break
+                
+        except Exception as e:
+            print(f"\nError during API call: {e}")
+            break
+    
     progressprinter.clear()
-    print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
-    printer.finalize()
-
-    # Now enter the interactive loop
+    
+    # Print reasoning summary at the end of research
+    if reasoning_summaries:
+        print(f"\n\n{'='*50}")
+        print(f"Reasoning Summary: {len(reasoning_summaries)} reasoning step(s) completed")
+        print(f"{'='*50}\n")
+    
+    # Interactive loop
     while True:
         try:
-            user_input = input("You (leave blank to exit): ")
+            user_input = input("\nYou (leave blank to exit): ")
         except EOFError:
             print()
             break
         if not user_input:
-           break
-        chat.add_user_message(user_input)
+            break
         
-        current_tokens = len(model.tokenize(str(chat)))
-        remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
+        messages.append({"role": "user", "content": user_input})
+        
         printer = FormattedPrinter()
-        progressprinter = ProgressBarPrinter()
-        print(f"{remaining_percentage}% Bot: ", end="", flush=True)
-        model.act(
-            chat,
-            [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
-            on_message=chat.append,
-            on_prediction_fragment=printer.print_fragment,
-            on_round_end=lambda round_index: context_details(),
-            on_prompt_processing_progress=progressprinter.update_progress,
-        )
-        # Clear progress bar and reset cursor position before finalizing output
-        progressprinter.clear()
-        print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
-        printer.finalize()
+        print("Bot: ", end="", flush=True)
+        
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    tools=tools,
+                    stream=True,
+                    stream_options={"include_usage": True}
+                )
+                
+                full_content = ""
+                reasoning_content = ""
+                tool_calls = []
+                
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                        
+                    delta = chunk.choices[0].delta
+                    
+                    # Handle reasoning/thinking content
+                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                        reasoning_content += delta.reasoning_content
+                        print(f"\033[90m{delta.reasoning_content}\033[0m", end="", flush=True)
+                    
+                    if delta.content:
+                        full_content += delta.content
+                        printer.print_fragment(delta.content)
+                    
+                    if delta.tool_calls:
+                        for tc_chunk in delta.tool_calls:
+                            if tc_chunk.index is not None:
+                                while len(tool_calls) <= tc_chunk.index:
+                                    tool_calls.append({
+                                        "id": "",
+                                        "type": "function",
+                                        "function": {"name": "", "arguments": ""}
+                                    })
+                                current_tool_call = tool_calls[tc_chunk.index]
+                                
+                                if tc_chunk.id:
+                                    current_tool_call["id"] = tc_chunk.id
+                                if tc_chunk.function:
+                                    if tc_chunk.function.name:
+                                        current_tool_call["function"]["name"] = tc_chunk.function.name
+                                    if tc_chunk.function.arguments:
+                                        current_tool_call["function"]["arguments"] += tc_chunk.function.arguments
+                    
+                    if chunk.choices[0].finish_reason == "stop":
+                        break
+                    elif chunk.choices[0].finish_reason == "tool_calls":
+                        break
+                
+                # Store reasoning summary if available
+                if reasoning_content:
+                    reasoning_summaries.append({
+                        "iteration": f"interactive-{iteration}",
+                        "reasoning": reasoning_content,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    reasoning_file = Path("research_knowledge") / "reasoning_summaries.json"
+                    with reasoning_file.open("w") as f:
+                        json.dump(reasoning_summaries, f, indent=2)
+                    print(f"\n[Reasoning summary saved]")
+                
+                if full_content:
+                    printer.finalize()
+                    messages.append({"role": "assistant", "content": full_content})
+                
+                if tool_calls:
+                    messages.append({
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": tool_calls
+                    })
+                    
+                    for tool_call in tool_calls:
+                        function_name = tool_call["function"]["name"]
+                        try:
+                            arguments = json.loads(tool_call["function"]["arguments"])
+                        except json.JSONDecodeError:
+                            arguments = {}
+                        
+                        print(f"\n[Calling: {function_name}]")
+                        result = execute_function(function_name, arguments)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call["id"],
+                            "content": result
+                        })
+                    
+                    print("\nBot: ", end="", flush=True)
+                    continue
+                else:
+                    break
+                    
+            except Exception as e:
+                print(f"\nError during API call: {e}")
+                break
 
 
 def main():
