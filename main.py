@@ -401,8 +401,7 @@ def researcher(query: str):
     system_message = f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base, treat it like your permanent memory. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information."
     
     messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": f"Here is the research query given by the user: '{query}'"}
+        {"role": "user", "content": f"Here is the research query given by the user: '{query}'\n\n{system_message}"}
     ]
     
     tools = get_tools_definitions()
@@ -413,20 +412,25 @@ def researcher(query: str):
     
     max_iterations = 30  # Prevent infinite loops
     iteration = 0
+    reasoning_summaries = []  # Store reasoning summaries for later reference
     
     while iteration < max_iterations:
         iteration += 1
         
         try:
-            # Call OpenAI API with streaming
+            # Call OpenAI API with streaming - using reasoning model approach
+            # For reasoning models like gpt-5-mini, we enable reasoning output
             response = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=messages,
                 tools=tools,
-                stream=True
+                stream=True,
+                # Enable reasoning/thinking output for reasoning models
+                stream_options={"include_usage": True}
             )
             
             full_content = ""
+            reasoning_content = ""
             tool_calls = []
             current_tool_call = None
             
@@ -436,6 +440,12 @@ def researcher(query: str):
                     continue
                     
                 delta = chunk.choices[0].delta
+                
+                # Handle reasoning/thinking content (for reasoning models)
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    reasoning_content += delta.reasoning_content
+                    # Print reasoning in gray
+                    print(f"\033[90m{delta.reasoning_content}\033[0m", end="", flush=True)
                 
                 # Handle content streaming
                 if delta.content:
@@ -468,6 +478,19 @@ def researcher(query: str):
                     break
                 elif chunk.choices[0].finish_reason == "tool_calls":
                     break
+            
+            # Store reasoning summary if available
+            if reasoning_content:
+                reasoning_summaries.append({
+                    "iteration": iteration,
+                    "reasoning": reasoning_content,
+                    "timestamp": datetime.now().isoformat()
+                })
+                # Save reasoning summary to file for reference
+                reasoning_file = Path("research_knowledge") / "reasoning_summaries.json"
+                with reasoning_file.open("w") as f:
+                    json.dump(reasoning_summaries, f, indent=2)
+                print(f"\n[Reasoning summary saved]")
             
             # Finalize the current response
             if full_content:
@@ -514,6 +537,12 @@ def researcher(query: str):
     
     progressprinter.clear()
     
+    # Print reasoning summary at the end of research
+    if reasoning_summaries:
+        print(f"\n\n{'='*50}")
+        print(f"Reasoning Summary: {len(reasoning_summaries)} reasoning step(s) completed")
+        print(f"{'='*50}\n")
+    
     # Interactive loop
     while True:
         try:
@@ -538,10 +567,12 @@ def researcher(query: str):
                     model=MODEL_NAME,
                     messages=messages,
                     tools=tools,
-                    stream=True
+                    stream=True,
+                    stream_options={"include_usage": True}
                 )
                 
                 full_content = ""
+                reasoning_content = ""
                 tool_calls = []
                 
                 for chunk in response:
@@ -549,6 +580,11 @@ def researcher(query: str):
                         continue
                         
                     delta = chunk.choices[0].delta
+                    
+                    # Handle reasoning/thinking content
+                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                        reasoning_content += delta.reasoning_content
+                        print(f"\033[90m{delta.reasoning_content}\033[0m", end="", flush=True)
                     
                     if delta.content:
                         full_content += delta.content
@@ -577,6 +613,18 @@ def researcher(query: str):
                         break
                     elif chunk.choices[0].finish_reason == "tool_calls":
                         break
+                
+                # Store reasoning summary if available
+                if reasoning_content:
+                    reasoning_summaries.append({
+                        "iteration": f"interactive-{iteration}",
+                        "reasoning": reasoning_content,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    reasoning_file = Path("research_knowledge") / "reasoning_summaries.json"
+                    with reasoning_file.open("w") as f:
+                        json.dump(reasoning_summaries, f, indent=2)
+                    print(f"\n[Reasoning summary saved]")
                 
                 if full_content:
                     printer.finalize()

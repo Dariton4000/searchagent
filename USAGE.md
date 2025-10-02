@@ -49,11 +49,20 @@ The agent will:
 
 ## Features
 
-### Reasoning Model
-GPT-5-mini is a reasoning model that:
-- Thinks through complex queries step-by-step
+### Reasoning Model with Extended Thinking
+GPT-5-mini is an advanced reasoning model that:
+- Thinks through complex queries step-by-step with visible reasoning process
 - Provides well-structured and logical responses
 - Considers multiple sources before drawing conclusions
+- Displays its internal reasoning in real-time (shown in gray text)
+- Saves reasoning summaries automatically for later review
+
+### Reasoning Summaries
+The agent automatically:
+- Captures all reasoning steps during research
+- Saves summaries to `research_knowledge/reasoning_summaries.json`
+- Provides a summary count at the end of each research session
+- Allows you to review the model's thought process
 
 ### Tool Calling
 The agent has access to these tools:
@@ -70,13 +79,15 @@ After completing the initial research, you can:
 - Request clarifications
 - Explore related topics
 - Leave blank input to exit
+- All interactions benefit from the model's reasoning capabilities
 
 ## Example Session
 
 ```
 Please provide a research task for the ai researcher: What is machine learning?
 
-Bot: Let me research that for you...
+Bot: [Reasoning shown in gray] Analyzing the query about machine learning...
+Let me research that for you...
 
 [Calling: duckduckgo_search]
 [Calling: crawl4ai]
@@ -84,11 +95,16 @@ Bot: Let me research that for you...
 [Calling: get_wikipedia_page]
 [Calling: create_report]
 
+==================================================
+Reasoning Summary: 5 reasoning step(s) completed
+==================================================
+
 Report saved to reports/Machine_Learning_Overview_20250102_143052.md
 
 You (leave blank to exit): How is it different from AI?
 
-Bot: Let me explain the differences...
+Bot: [Reasoning shown in gray] Considering the relationship between ML and AI...
+Let me explain the differences...
 ```
 
 ## Output
@@ -97,6 +113,11 @@ Research reports are saved in the `reports/` directory as markdown files with:
 - Comprehensive content
 - Tables and structured information
 - Source citations
+
+Reasoning summaries are saved in `research_knowledge/reasoning_summaries.json` with:
+- Timestamp for each reasoning step
+- Full reasoning content
+- Iteration tracking
 - Timestamped filenames
 
 ## Troubleshooting

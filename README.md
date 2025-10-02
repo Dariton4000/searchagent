@@ -45,7 +45,8 @@ The script will activate the virtual environment and then execute the `main.py` 
 - **Crawling:** It can crawl websites to extract text content for further analysis.
 - **Knowledge Base:** The agent can store and retrieve information from a local knowledge base (`research_knowledge/knowledge.json`).
 - **Reporting:** After conducting research, the agent generates a detailed report in markdown format and saves it in the `reports/` directory.
-- **Reasoning:** Uses GPT-5-mini model which supports extended reasoning capabilities for better research quality.
+- **Reasoning:** Uses GPT-5-mini reasoning model with extended thinking capabilities. The agent displays its reasoning process in real-time and saves reasoning summaries for later reference.
+- **Reasoning Summaries:** All reasoning steps are automatically saved to `research_knowledge/reasoning_summaries.json` for review and analysis.
 
 ## Project Structure
 
@@ -54,4 +55,4 @@ The script will activate the virtual environment and then execute the `main.py` 
 - `install.bat`: A script to automate the installation process.
 - `start.bat`: A script to run the research agent.
 - `reports/`: A directory where the generated reports are stored.
-- `research_knowledge/`: A directory used to store the knowledge base.
+- `research_knowledge/`: A directory used to store the knowledge base and reasoning summaries.
