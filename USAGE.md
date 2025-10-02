@@ -1,6 +1,6 @@
 # Example Usage Guide
 
-This guide shows you how to use the refactored AI Research Agent with OpenAI's GPT-4o-mini.
+This guide shows you how to use the refactored AI Research Agent with OpenAI's GPT-5-mini.
 
 ## Quick Start
 
@@ -50,7 +50,7 @@ The agent will:
 ## Features
 
 ### Reasoning Model
-GPT-4o-mini is a reasoning model that:
+GPT-5-mini is a reasoning model that:
 - Thinks through complex queries step-by-step
 - Provides well-structured and logical responses
 - Considers multiple sources before drawing conclusions

@@ -1,6 +1,6 @@
 # AI Research Agent
 
-This project is an AI-powered research agent that uses OpenAI's GPT-4o-mini model to answer research queries. It can search the web, crawl websites, and generate reports based on its findings.
+This project is an AI-powered research agent that uses OpenAI's GPT-5-mini model to answer research queries. It can search the web, crawl websites, and generate reports based on its findings.
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ The script will activate the virtual environment and then execute the `main.py` 
 - **Crawling:** It can crawl websites to extract text content for further analysis.
 - **Knowledge Base:** The agent can store and retrieve information from a local knowledge base (`research_knowledge/knowledge.json`).
 - **Reporting:** After conducting research, the agent generates a detailed report in markdown format and saves it in the `reports/` directory.
-- **Reasoning:** Uses GPT-4o-mini model which supports extended reasoning capabilities for better research quality.
+- **Reasoning:** Uses GPT-5-mini model which supports extended reasoning capabilities for better research quality.
 
 ## Project Structure
 

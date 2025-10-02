@@ -15,7 +15,7 @@ from rich.markdown import Markdown
 
 # Initialize OpenAI client
 client = OpenAI()  # API key should be set in OPENAI_API_KEY environment variable
-MODEL_NAME = "gpt-4o-mini"  # Using GPT-4o-mini as a reasoning model
+MODEL_NAME = "gpt-5-mini"  # Using GPT-5-mini as requested
 
 # Global conversation history
 messages = []
