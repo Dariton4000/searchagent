@@ -112,6 +112,7 @@ def get_wikipedia_page(page: str) -> str:
     Returns:
         Page content as plain text
     """
+    print()
     print(f"Fetching Wikipedia page: {page}")
     
     url = 'https://en.wikipedia.org/w/api.php'
@@ -186,8 +187,10 @@ def create_report(title: str, content: str, sources: list) -> str:
 
 class ProgressBarPrinter:
     def __init__(self):
+        print()
         self.progress = 0
         self.start_time = None
+        self.done = False
 
     def update_progress(self, progress, _):
         if self.start_time is None:
@@ -211,7 +214,9 @@ class ProgressBarPrinter:
         if progress == 100:
             eta_str = "done"
             completion_str = ""
+            self.done = True
         elif progress > 0:
+            self.done = False
             total_time = (elapsed_time / progress) * 100
             remaining_time = total_time - elapsed_time
             completion_time = datetime.now() + timedelta(seconds=remaining_time)
@@ -219,11 +224,14 @@ class ProgressBarPrinter:
             eta_str = f"ETA: {int(remaining_time)}s"
             completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
         else: # progress is 0
+            self.done = False
             eta_str = "ETA: N/A"
             completion_str = ""
 
         # Clear the line before printing to avoid overlapping text and format progress as integer
         print(f"\r{' ' * 120}\r|{bar}| {int(progress)}% | {eta_str} | {completion_str}", end="", flush=True)
+        if self.done:
+            print("\n")  # Move to the next line on completion
     
     def clear(self):
         # Clear the progress bar from the terminal and move cursor to beginning of line
@@ -235,7 +243,9 @@ def context_details():
     token_count = len(model.tokenize(str(chat)))
     context_length = model.get_context_length()
     remaining_percentage = round(((context_length - token_count) / context_length) * 100)
+    print()
     print(f"{token_count}/{context_length} ({remaining_percentage}%)")
+    print("\n")
     return
 
 class FormattedPrinter:
@@ -246,8 +256,12 @@ class FormattedPrinter:
         self.current_buffer = ""
         self.bot_response_buffer = ""
         self.in_think_content_mode = False
+        self.in_analysis_mode = False
         self.think_tag_open = "<think>"
         self.think_tag_close = "</think>"
+        self.channel_tag_open = "<|channel|>"
+        self.message_tag_open = "<|message|>"
+        self.end_tag_close = "<|end|>"
         self.grey_code = "\033[90m"
         self.reset_code = "\033[0m"
         
@@ -273,39 +287,73 @@ class FormattedPrinter:
                     print(self.current_buffer, end="", flush=True)
                     self.current_buffer = ""
                     return
-            else:  # not in_think_content_mode
-                open_tag_index = self.current_buffer.find(self.think_tag_open)
-                close_tag_index = self.current_buffer.find(self.think_tag_close)
+            elif self.in_analysis_mode:
+                end_tag_index = self.current_buffer.find(self.end_tag_close)
+                if end_tag_index != -1:
+                    text_to_print = self.current_buffer[:end_tag_index]
+                    print(text_to_print, end="", flush=True)
+                    print(self.reset_code, end="", flush=True)
+                    self.current_buffer = self.current_buffer[end_tag_index + len(self.end_tag_close):]
+                    self.in_analysis_mode = False
+                else:
+                    print(self.current_buffer, end="", flush=True)
+                    self.current_buffer = ""
+                    return
+            else:  # not in any special mode
+                think_open_tag_index = self.current_buffer.find(self.think_tag_open)
+                channel_open_tag_index = self.current_buffer.find(self.channel_tag_open)
 
-                if open_tag_index != -1 and (open_tag_index < close_tag_index or close_tag_index == -1):
-                    # Process the opening tag
-                    text_to_print = self.current_buffer[:open_tag_index]
+                # Determine which tag comes first
+                first_tag_index = -1
+                is_think_tag = False
+                is_channel_tag = False
+
+                if think_open_tag_index != -1 and (channel_open_tag_index == -1 or think_open_tag_index < channel_open_tag_index):
+                    first_tag_index = think_open_tag_index
+                    is_think_tag = True
+                elif channel_open_tag_index != -1:
+                    first_tag_index = channel_open_tag_index
+                    is_channel_tag = True
+
+                if is_think_tag:
+                    text_to_print = self.current_buffer[:first_tag_index]
                     self.bot_response_buffer += text_to_print
-                    # print(text_to_print, end="", flush=True)
                     print(self.grey_code, end="", flush=True)
-                    self.current_buffer = self.current_buffer[open_tag_index + len(self.think_tag_open):]
+                    self.current_buffer = self.current_buffer[first_tag_index + len(self.think_tag_open):]
                     self.in_think_content_mode = True
-                elif close_tag_index != -1:
-                    # A stray closing tag is the next tag, remove it
-                    text_to_print = self.current_buffer[:close_tag_index]
-                    self.bot_response_buffer += text_to_print
-                    # print(text_to_print, end="", flush=True)
-                    self.current_buffer = self.current_buffer[close_tag_index + len(self.think_tag_close):]
+                elif is_channel_tag:
+                    message_tag_index = self.current_buffer.find(self.message_tag_open)
+                    if message_tag_index != -1 and message_tag_index > first_tag_index:
+                        text_to_print = self.current_buffer[:first_tag_index]
+                        self.bot_response_buffer += text_to_print
+                        
+                        channel_content = self.current_buffer[first_tag_index + len(self.channel_tag_open):message_tag_index]
+                        
+                        print(f"{self.grey_code}", end="", flush=True)
+
+                        self.current_buffer = self.current_buffer[message_tag_index + len(self.message_tag_open):]
+                        self.in_analysis_mode = True
+                    else: # No message tag, just print
+                        self.bot_response_buffer += self.current_buffer
+                        self.current_buffer = ""
                 else:
                     # No tags in buffer
                     self.bot_response_buffer += self.current_buffer
-                    # print(self.current_buffer, end="", flush=True)
                     self.current_buffer = ""
                     return
     
     def finalize(self):
         self._process_buffer()
-        if self.in_think_content_mode:
+        if self.in_think_content_mode or self.in_analysis_mode:
             print(self.reset_code, end="", flush=True)
             self.in_think_content_mode = False
+            self.in_analysis_mode = False
         
         console = Console()
-        console.print(Markdown(self.bot_response_buffer))
+        # Only print the markdown if the buffer contains non-whitespace content;
+        # this prevents printing empty markdown blocks.
+        if self.bot_response_buffer.strip():
+            console.print(Markdown(self.bot_response_buffer))
         self.bot_response_buffer = ""
 
 def researcher(query: str):
