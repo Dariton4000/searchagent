@@ -179,6 +179,7 @@ def create_report(title: str, content: str, sources: list) -> str:
         with report_file.open("w") as f:
             f.write(report_content)
         print(f"Report saved to {report_file}")
+        # Todo: Use the plyer library to notify the user
         return f"DONE, Report saved to {report_file}"
     except IOError as e:
         error_message = f"Error writing report to file: {e}"
