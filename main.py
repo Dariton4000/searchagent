@@ -98,6 +98,7 @@ def crawl4ai(url: str):
     return asyncio.run(crawl4aiasync(url))
 
 def get_wikipedia_page(page: str) -> str:
+    # Todo: Add +tokencount in the tokenoverview to better track token usage 
     """        
     Returns:
         Page content as plain text
@@ -190,16 +191,22 @@ class ProgressBarPrinter:
         print()
         self.progress = 0
         self.start_time = None
+        self.start_progress = 0
         self.done = False
 
     def update_progress(self, progress, _):
-        if self.start_time is None:
-            self.start_time = time.time()
         # Convert progress to percentage if it's in 0-1 range
         if progress <= 1.0:
-            self.progress = progress * 100
+            current_progress = progress * 100
         else:
-            self.progress = progress
+            current_progress = progress
+
+        if self.start_time is None:
+            if current_progress > 0:
+                self.start_time = time.time()
+                self.start_progress = current_progress
+        
+        self.progress = current_progress
         self._print_progress_bar()
 
     def _print_progress_bar(self):
@@ -215,15 +222,22 @@ class ProgressBarPrinter:
             eta_str = "done"
             completion_str = ""
             self.done = True
-        elif progress > 0:
+        elif progress > 0 and self.start_time is not None:
             self.done = False
-            total_time = (elapsed_time / progress) * 100
-            remaining_time = total_time - elapsed_time
-            completion_time = datetime.now() + timedelta(seconds=remaining_time)
+            delta_progress = progress - self.start_progress
             
-            eta_str = f"ETA: {int(remaining_time)}s"
-            completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
-        else: # progress is 0
+            if delta_progress > 0 and elapsed_time > 0:
+                rate = delta_progress / elapsed_time
+                remaining_progress = 100 - progress
+                remaining_time = remaining_progress / rate
+                completion_time = datetime.now() + timedelta(seconds=remaining_time)
+                
+                eta_str = f"ETA: {int(remaining_time)}s"
+                completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
+            else:
+                eta_str = "ETA: Calculating..."
+                completion_str = ""
+        else: # progress is 0 or start_time is None
             self.done = False
             eta_str = "ETA: N/A"
             completion_str = ""
