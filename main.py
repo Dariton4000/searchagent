@@ -77,10 +77,15 @@ def duckduckgo_search(search_query: str) -> str:
         The search results with crawlable links.
     """
     print(f"\nSearching DuckDuckGo for: {search_query}")
-    results = DDGS().text(search_query, max_results=6)
-    filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
-    print(filtered_results)
-    return json.dumps(filtered_results)
+    time.sleep(2)
+    try:
+        results = DDGS().text(search_query, max_results=6)
+        filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
+        print(filtered_results)
+        return json.dumps(filtered_results)
+    except Exception as e:
+        print(f"Error searching DuckDuckGo: {e}")
+        return json.dumps([])
 
 def crawl4ai(url: str):
     """Crawls a given URL and returns the text content.
@@ -124,18 +129,25 @@ def get_wikipedia_page(page: str) -> str:
         'explaintext': True,
         'titles': page
     }
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
     
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
 
-    data = response.json()
-    pages = data.get('query', {}).get('pages', {})
+        data = response.json()
+        pages = data.get('query', {}).get('pages', {})
 
-    if not pages:
-        result = "No page found."
-    else:
-        page_data = next(iter(pages.values()))
-        result = page_data.get('extract', "No content found for the given page.")
+        if not pages:
+            result = "No page found."
+        else:
+            page_data = next(iter(pages.values()))
+            result = page_data.get('extract', "No content found for the given page.")
+    except Exception as e:
+        print(f"Error fetching Wikipedia page: {e}")
+        result = f"Error fetching Wikipedia page: {e}"
 
     model = lms.llm()
     print(f"Token count: {len(model.tokenize(str(result)))}")
