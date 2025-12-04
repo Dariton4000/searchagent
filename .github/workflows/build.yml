@@ -40,25 +40,8 @@ jobs:
         name: SearchAgent-EXE
         path: dist/SearchAgent.exe
 
-    - name: Check if tag exists
-      id: check_tag
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const tagName = `build-${{ github.run_number }}`;
-          try {
-            await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `refs/tags/${tagName}`,
-            });
-            core.setOutput('tag_exists', 'true');
-        prerelease: true
-            core.setOutput('tag_exists', 'false');
-          }
-
     - name: Create Release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.check_tag.outputs.tag_exists == 'false'
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: build-${{ github.sha }}
