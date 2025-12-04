@@ -22,4 +22,4 @@ test.py
 # PyInstaller / Build Artifacts
 build/
 dist/
-*.spec
+
