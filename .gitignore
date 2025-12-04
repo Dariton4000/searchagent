@@ -1,6 +1,25 @@
-research_knowledge
-reports
-test.py
-.venv
-.env
+# Python
 __pycache__/
+*.py[cod]
+*.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# VS Code
+.vscode/
+
+# Project Specific
+research_knowledge/
+reports/
+test.py
+
+# PyInstaller / Build Artifacts
+build/
+dist/
+*.spec

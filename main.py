@@ -72,7 +72,7 @@ def duckduckgo_search(search_query: str) -> str:
 
     Args:
         query: The query to search for.
-        treat it like a Google search query, accepts special formats like "query" for only exact matches, query filetype:pdf for specific file types and so on.
+        treat it like a Google search query.
     Returns:
         The search results with crawlable links.
     """
