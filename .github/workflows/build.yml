@@ -32,7 +32,7 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller --noconfirm --onefile --console --name "SearchAgent" --clean --collect-all crawl4ai --collect-all lmstudio --collect-all rich --hidden-import=tiktoken_ext.openai_public --hidden-import=tiktoken_ext main.py
+        pyinstaller --noconfirm --clean SearchAgent.spec
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4

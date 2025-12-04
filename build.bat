@@ -15,13 +15,7 @@ echo Installing dependencies...
 pip install -r requirements.txt
 
 echo Running PyInstaller...
-pyinstaller --noconfirm --onefile --console --name "SearchAgent" --clean ^
-    --collect-all crawl4ai ^
-    --collect-all lmstudio ^
-    --collect-all rich ^
-    --hidden-import=tiktoken_ext.openai_public ^
-    --hidden-import=tiktoken_ext ^
-    main.py
+pyinstaller --noconfirm --clean SearchAgent.spec
 
 echo Build complete!
 echo The executable is located in the "dist" folder.
