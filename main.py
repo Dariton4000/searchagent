@@ -13,6 +13,7 @@ import re
 import os
 from rich.console import Console
 from rich.markdown import Markdown
+from plyer import notification
 
 
 
@@ -191,7 +192,12 @@ def create_report(title: str, content: str, sources: list) -> str:
         with report_file.open("w") as f:
             f.write(report_content)
         print(f"Report saved to {report_file}")
-        # Todo: Use the plyer library to notify the user
+        notification.notify(
+            title="SearchAgent Report Saved",
+            message=str(report_file),
+            app_name="SearchAgent",
+            timeout=5,
+        )
         return f"DONE, Report saved to {report_file}"
     except IOError as e:
         error_message = f"Error writing report to file: {e}"
