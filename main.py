@@ -14,7 +14,7 @@ import os
 from rich.console import Console
 from rich.markdown import Markdown
 
-
+console = Console(force_terminal=True)
 
 def save_knowledge(knowledge: str) -> str:
     """Adds new knowledge for later use."""
@@ -35,6 +35,7 @@ def save_knowledge(knowledge: str) -> str:
     # write back
     with knowledge_file.open("w") as f:
         json.dump(data, f, indent=2)
+    print()
     print(f"Knowledge {next_num} saved: {knowledge}")
     return f"Knowledge {next_num} saved successfully."
 
@@ -199,68 +200,85 @@ def create_report(title: str, content: str, sources: list) -> str:
 
 class ProgressBarPrinter:
     def __init__(self):
-        print()
-        self.progress = 0
         self.start_time = None
-        self.start_progress = 0
-        self.done = False
+        self.last_time = None
+        self.ema_speed = None  # Units per second
+        self.alpha = 0.3  # Smoothing factor for EMA
+        self.last_pct = 0
+        self.first_call = True
 
     def update_progress(self, progress, _):
-        # Convert progress to percentage if it's in 0-1 range
+        # Normalize progress to 0-100
         if progress <= 1.0:
-            current_progress = progress * 100
+            pct = progress * 100
         else:
-            current_progress = progress
-
+            pct = progress
+        
+        now = time.time()
+        
+        if self.first_call:
+            print() # Newline to start
+            self.first_call = False
+        
         if self.start_time is None:
-            if current_progress > 0:
-                self.start_time = time.time()
-                self.start_progress = current_progress
-        
-        self.progress = current_progress
-        self._print_progress_bar()
-
-    def _print_progress_bar(self):
-        bar_length = 50
-        # Ensure progress is within valid range
-        progress = max(0, min(100, self.progress))
-        filled_length = int(bar_length * progress / 100)
-        bar = '█' * filled_length + '-' * (bar_length - filled_length)
-
-        elapsed_time = time.time() - (self.start_time if self.start_time else time.time())
-        
-        if progress == 100:
-            eta_str = "done"
-            completion_str = ""
-            self.done = True
-        elif progress > 0 and self.start_time is not None:
-            self.done = False
-            delta_progress = progress - self.start_progress
-            
-            if delta_progress > 0 and elapsed_time > 0:
-                rate = delta_progress / elapsed_time
-                remaining_progress = 100 - progress
-                remaining_time = remaining_progress / rate
-                completion_time = datetime.now() + timedelta(seconds=remaining_time)
-                
-                eta_str = f"ETA: {int(remaining_time)}s"
-                completion_str = f"Completion: {completion_time.strftime('%H:%M:%S')}"
+            if pct > 0:
+                self.start_time = now
+                self.last_time = now
+                self.last_pct = pct
+                self._render(pct)
+                return
             else:
-                eta_str = "ETA: Calculating..."
-                completion_str = ""
-        else: # progress is 0 or start_time is None
-            self.done = False
-            eta_str = "ETA: N/A"
-            completion_str = ""
+                self._render(pct)
+                return
 
-        # Clear the line before printing to avoid overlapping text and format progress as integer
-        print(f"\r{' ' * 120}\r|{bar}| {int(progress)}% | {eta_str} | {completion_str}", end="", flush=True)
-        if self.done:
-            print("\n")  # Move to the next line on completion
-    
+        dt = now - self.last_time
+        
+        # Update stats every 0.1s or if finished
+        if dt > 0.1 or pct >= 100:
+            dp = pct - self.last_pct
+            if dt > 0:
+                speed = dp / dt
+                if self.ema_speed is None:
+                    self.ema_speed = speed
+                else:
+                    self.ema_speed = self.alpha * speed + (1 - self.alpha) * self.ema_speed
+            
+            self.last_time = now
+            self.last_pct = pct
+            self._render(pct)
+
+    def _render(self, pct):
+        # Calculate ETA
+        if self.ema_speed and self.ema_speed > 0:
+            remaining = 100 - pct
+            eta_seconds = remaining / self.ema_speed
+            eta_str = str(timedelta(seconds=int(eta_seconds)))
+        else:
+            eta_str = "Calculating..."
+
+        if self.start_time:
+            elapsed = time.time() - self.start_time
+        else:
+            elapsed = 0
+        elapsed_str = str(timedelta(seconds=int(elapsed)))
+
+        # Bar
+        width = 30
+        filled = int(width * (pct / 100))
+        bar = "█" * filled + "░" * (width - filled)
+        
+        # Colors (ANSI)
+        BLUE = "\033[94m"
+        GREEN = "\033[92m"
+        RESET = "\033[0m"
+        
+        # \033[2K clears the entire line
+        line = f"\r\033[2K{BLUE}Processing{RESET} ▕{bar}▏ {pct:3.0f}% • {GREEN}ETA: {eta_str}{RESET} • Elapsed: {elapsed_str}"
+        print(line, end="", flush=True)
+
     def clear(self):
-        # Clear the progress bar from the terminal and move cursor to beginning of line
-        print(f"\r{' ' * 120}\r", end="", flush=True)
+        # Clear line
+        print("\r\033[2K", end="", flush=True)
 
 def context_details():
     # context window details
@@ -289,10 +307,6 @@ class FormattedPrinter:
         self.end_tag_close = "<|end|>"
         self.grey_code = "\033[90m"
         self.reset_code = "\033[0m"
-        
-        # Enable ANSI escape codes on Windows
-        if os.name == 'nt':
-            os.system('')
 
     def print_fragment(self, fragment, round_index=0):
         self.current_buffer += fragment.content
@@ -374,7 +388,6 @@ class FormattedPrinter:
             self.in_think_content_mode = False
             self.in_analysis_mode = False
         
-        console = Console()
         # Only print the markdown if the buffer contains non-whitespace content;
         # this prevents printing empty markdown blocks.
         if self.bot_response_buffer.strip():
@@ -397,7 +410,7 @@ def researcher(query: str):
     remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
     printer = FormattedPrinter()
     progressprinter = ProgressBarPrinter()
-    print(f"{remaining_percentage}% Bot: ", end="", flush=True)
+    print(f"Researcher: ", end="", flush=True)
     model.act(
         chat,
         [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
@@ -408,7 +421,7 @@ def researcher(query: str):
     )
     # Clear progress bar and reset cursor position before finalizing output
     progressprinter.clear()
-    print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
+    print(f"\rResearcher: ", end="", flush=True)
     printer.finalize()
 
     # Now enter the interactive loop
@@ -426,7 +439,7 @@ def researcher(query: str):
         remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)
         printer = FormattedPrinter()
         progressprinter = ProgressBarPrinter()
-        print(f"{remaining_percentage}% Bot: ", end="", flush=True)
+        print(f"Researcher: ", end="", flush=True)
         model.act(
             chat,
             [duckduckgo_search, save_knowledge, get_all_knowledge, crawl4ai, create_report, get_wikipedia_page],
@@ -437,7 +450,7 @@ def researcher(query: str):
         )
         # Clear progress bar and reset cursor position before finalizing output
         progressprinter.clear()
-        print(f"\r{remaining_percentage}% Bot: ", end="", flush=True)
+        print(f"\rResearcher: ", end="", flush=True)
         printer.finalize()
 
 
