@@ -13,7 +13,6 @@ from functions import (
     get_wikipedia_page,
     context_details,
 )
-import functions
 
 console = Console(force_terminal=True)
 
