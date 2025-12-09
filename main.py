@@ -41,6 +41,7 @@ def save_knowledge(knowledge: str) -> str:
 
 def get_all_knowledge() -> list:
     """Returns all entries in the knowledge base."""
+    print()
     print("Retrieving all knowledge entries")
     knowledge_file = Path("research_knowledge") / "knowledge.json"
     if not knowledge_file.exists():
@@ -77,7 +78,8 @@ def duckduckgo_search(search_query: str) -> str:
     Returns:
         The search results with crawlable links.
     """
-    print(f"\nSearching DuckDuckGo for: {search_query}")
+    print()
+    print(f"Searching DuckDuckGo for: {search_query}")
     try:
         results = DDGS().text(search_query, max_results=6)
         filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
