@@ -53,6 +53,14 @@ class ProgressBarPrinter:
             print() # Newline to start
             self.first_call = False
         
+        # Detect new processing phase: if progress dropped significantly (e.g., was at/near 100%, now low)
+        # This indicates a new prompt processing started after a tool call
+        if self.last_pct >= 90 and pct < 50:
+            self.start_time = None
+            self.last_time = None
+            self.ema_speed = None
+            self.last_pct = 0
+        
         if self.start_time is None:
             if pct > 0:
                 self.start_time = now

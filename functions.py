@@ -129,8 +129,10 @@ def get_wikipedia_page(page: str) -> str:
         'explaintext': True,
         'titles': page
     }
+    # Wikipedia API requires a descriptive User-Agent identifying the bot
+    # See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'SearchAgent/1.0 (AI Research Tool Bot; https://github.com/Dariton4000/searchagent)'
     }
     
     try:
