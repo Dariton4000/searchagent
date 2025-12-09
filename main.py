@@ -1,18 +1,19 @@
-from pyexpat import model
 import lmstudio as lms
-import json
 from pathlib import Path
-import requests
-from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import time
-from ddgs import DDGS
-import asyncio
-from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
-import re
-import os
 from rich.console import Console
 from rich.markdown import Markdown
+from functions import (
+    duckduckgo_search,
+    save_knowledge,
+    get_all_knowledge,
+    crawl4ai,
+    create_report,
+    get_wikipedia_page,
+    context_details,
+)
+import functions
 
 console = Console(force_terminal=True)
 
@@ -226,6 +227,7 @@ def researcher(query: str):
     chat = lms.Chat(
         f"You are a task-focused AI researcher. The current date and time is {now}. Begin researching immediately. Perform multiple online searches to gather reliable information. Crawl webpages for context. When possible use Wikipedia as a source. Research extensively, multiple searches and crawls, One Source is not enough. After crawling a webpage, store any useful knowledge in the research knowledge base, treat it like your permanent memory. Recall all stored knowledge before creating the final report. Don't forget to ground information in reliable sources, crawl pages after searching DuckDuckGo for this. Mark any assumptions clearly. Produce an extensive report in markdown format using the create_report tool, be sure to use this tool. Create the report ONLY when you are done with all research. Already saved reports can NOT be changed or deleted. Add some tables if you think it will help clarify the information. Here is the research query: '{query}'"
     )
+    functions.chat = chat  # Share chat with functions module
 
     chat.add_user_message(f"Here is the research query given by the user: '{query}'")
 
@@ -257,6 +259,7 @@ def researcher(query: str):
         if not user_input:
            break
         chat.add_user_message(user_input)
+        functions.chat = chat  # Update chat reference in functions module
         
         current_tokens = len(model.tokenize(str(chat)))
         remaining_percentage = round(((context_length - current_tokens) / context_length) * 100)

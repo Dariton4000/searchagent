@@ -1,5 +1,15 @@
+import json
+from pathlib import Path
+import requests
+from datetime import datetime
+import asyncio
+from ddgs import DDGS
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+import re
+import lmstudio as lms
 
-
+# This will be set by main.py
+chat = None
 
 def save_knowledge(knowledge: str) -> str:
     """Adds new knowledge for later use."""
