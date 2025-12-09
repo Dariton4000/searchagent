@@ -13,22 +13,9 @@ from functions import (
     get_wikipedia_page,
     context_details,
 )
+import functions # leave this import here
 
 console = Console(force_terminal=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class ProgressBarPrinter:
     def __init__(self):

@@ -79,7 +79,10 @@ def crawl4ai(url: str):
     """
     print()
     print(f"Crawling {url}")
-    return asyncio.run(crawl4aiasync(url))
+    result = asyncio.run(crawl4aiasync(url))
+    model = lms.llm()
+    print(f"Token count: {len(model.tokenize(str(result)))}")
+    return result
 
 def duckduckgo_search(search_query: str) -> str:
     """Searches DuckDuckGo for the given query and returns the results.
