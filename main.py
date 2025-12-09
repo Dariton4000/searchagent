@@ -101,6 +101,7 @@ def crawl4ai(url: str):
     Returns:
         The text content of the page in markdown format.
     """
+    print()
     print(f"Crawling {url}")
     return asyncio.run(crawl4aiasync(url))
 
