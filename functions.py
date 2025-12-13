@@ -7,9 +7,180 @@ from ddgs import DDGS
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 import re
 import lmstudio as lms
+import sys
+import os
+import base64
+from urllib.parse import urlparse, parse_qs, unquote
 
 # This will be set by main.py
 chat = None
+
+_CONSOLE_TEXT_TRANSLATION = str.maketrans(
+    {
+        "\u00a0": " ",  # no-break space
+        "\u200b": "",  # zero-width space
+        "\u2010": "-",  # hyphen
+        "\u2011": "-",  # non-breaking hyphen
+        "\u2012": "-",  # figure dash
+        "\u2013": "-",  # en dash
+        "\u2014": "-",  # em dash
+        "\u2212": "-",  # minus sign
+        "\u2026": "...",  # ellipsis
+    }
+)
+
+
+def _normalize_whitespace(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _truncate_middle(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    if max_chars <= 3:
+        return text[:max_chars]
+    keep_start = max(1, (max_chars - 3) // 2)
+    keep_end = max(1, max_chars - 3 - keep_start)
+    return text[:keep_start].rstrip() + "..." + text[-keep_end:].lstrip()
+
+
+def _extract_target_url(href: str) -> str | None:
+    href = href.strip()
+    if not href:
+        return None
+
+    try:
+        parsed = urlparse(href)
+    except Exception:
+        return None
+
+    host = (parsed.netloc or "").lower()
+
+    # DuckDuckGo redirect wrapper: https://duckduckgo.com/l/?uddg=<urlencoded>
+    if host.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        qs = parse_qs(parsed.query)
+        uddg = qs.get("uddg", [None])[0]
+        if uddg:
+            target = unquote(uddg).strip()
+            if target.startswith(("http://", "https://")):
+                return target
+
+    # Bing ad/redirect wrapper. Sometimes appears without a '?' in the URL.
+    if host.endswith("bing.com") and parsed.path.startswith("/aclick"):
+        qs_str = parsed.query
+        if not qs_str and "&u=" in parsed.path:
+            qs_str = parsed.path[len("/aclick") :].lstrip("?")
+
+        if qs_str:
+            qs = parse_qs(qs_str)
+            u = qs.get("u", [None])[0]
+            if u:
+                u = u.strip()
+                # Often base64 of a percent-encoded URL.
+                try:
+                    padded = u + ("=" * (-len(u) % 4))
+                    decoded = base64.b64decode(padded, validate=False)
+                    decoded_str = decoded.decode("utf-8", errors="replace")
+                    target = unquote(decoded_str).strip()
+                    if target.startswith(("http://", "https://")):
+                        return target
+                except Exception:
+                    pass
+
+                target = unquote(u).strip()
+                if target.startswith(("http://", "https://")):
+                    return target
+
+    return None
+
+
+def _url_display_text(url: str, *, max_chars: int = 80) -> str:
+    url = url.strip()
+    if not url:
+        return url
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return _truncate_middle(url, max_chars)
+
+    if parsed.netloc:
+        host = parsed.netloc
+        if host.startswith("www."):
+            host = host[4:]
+        path = parsed.path or ""
+        if path == "/":
+            path = ""
+        display = (host + path).rstrip("/")
+        if display:
+            return _truncate_middle(display, max_chars)
+
+    return _truncate_middle(url, max_chars)
+
+
+def _supports_osc8_hyperlinks() -> bool:
+    if not getattr(sys.stdout, "isatty", lambda: False)():
+        return False
+
+    if os.environ.get("WT_SESSION"):
+        return True
+
+    term_program = (os.environ.get("TERM_PROGRAM") or "").lower()
+    if term_program in {"vscode", "wezterm", "iterm.app"}:
+        return True
+
+    if os.environ.get("VTE_VERSION") or os.environ.get("KONSOLE_VERSION"):
+        return True
+
+    return False
+
+
+def _osc8_link(url: str, text: str) -> str:
+    esc = "\x1b"
+    st = esc + "\\"
+    safe_url = url.replace(esc, "")
+    safe_text = text.replace(esc, "")
+    return f"{esc}]8;;{safe_url}{st}{safe_text}{esc}]8;;{st}"
+
+
+def _safe_print(text: str = "", *, end: str = "\n") -> None:
+    text = str(text).translate(_CONSOLE_TEXT_TRANSLATION)
+    try:
+        print(text, end=end, flush=True)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        data = (text + end).encode(encoding, errors="replace")
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(data)
+            buffer.flush()
+        else:
+            sys.stdout.write(data.decode(encoding, errors="replace"))
+            sys.stdout.flush()
+
+
+def _print_duckduckgo_results(query: str, results: list[dict]) -> None:
+    if not results:
+        _safe_print(f"DuckDuckGo results for: {query} (none)")
+        return
+
+    _safe_print(f"DuckDuckGo results for: {query} ({len(results)}):")
+    use_osc8 = _supports_osc8_hyperlinks()
+    for idx, r in enumerate(results, start=1):
+        title = _normalize_whitespace(str(r.get("title", ""))).strip() or "(no title)"
+        title = title.translate(_CONSOLE_TEXT_TRANSLATION)
+        title = re.sub(r"\s*-\s*$", "", title).strip() or "(no title)"
+        href = str(r.get("href", "")).strip()
+
+        if href:
+            target = _extract_target_url(href) or href
+            display = _url_display_text(target, max_chars=80)
+            link_text = _osc8_link(target, display) if use_osc8 else target
+            _safe_print(f"{idx}. {title} - {link_text}")
+        else:
+            _safe_print(f"{idx}. {title} - (no url)")
 
 def save_knowledge(knowledge: str) -> str:
     """Adds new knowledge for later use."""
@@ -93,17 +264,23 @@ def duckduckgo_search(search_query: str) -> str:
     Returns:
         The search results with crawlable links.
     """
-    print()
-    print(f"Searching DuckDuckGo for: {search_query}")
+    _safe_print()
+    _safe_print(f"Searching DuckDuckGo for: {search_query}")
     try:
-        results = DDGS().text(search_query, max_results=6)
-        filtered_results = [{'title': r['title'], 'href': r['href']} for r in results]
-        print(filtered_results)
-        return json.dumps(filtered_results)
+        results = list(DDGS().text(search_query, max_results=6))
+        filtered_results = [{"title": r["title"], "href": r["href"]} for r in results]
     except Exception as e:
-        print(f"Error searching DuckDuckGo: {e}")
+        _safe_print(f"Error searching DuckDuckGo: {e}")
         return json.dumps([])
-    
+
+    try:
+        _print_duckduckgo_results(search_query, results)
+    except Exception:
+        # Best-effort printing only; the tool result should still be returned.
+        pass
+
+    return json.dumps(filtered_results)
+
 
 def get_wikipedia_page(page: str) -> str:
     # Todo: Add +tokencount in the tokenoverview to better track token usage 
