@@ -4,7 +4,7 @@ This project is an AI-powered research agent that uses large language models to 
 
 ## Installation
 
-To install the project, run the `install.bat` script. This will create a virtual environment, install the required dependencies, and set up the necessary browser components for `crawl4ai`.
+To install the project, run the `install.bat` script. This uses **uv** to create a virtual environment, install dependencies, and set up the necessary browser components for `crawl4ai`.
 
 ```bash
 install.bat
@@ -18,7 +18,15 @@ Once the installation is complete, you can run the research agent using the `sta
 start.bat
 ```
 
-The script will activate the virtual environment and then execute the `main.py` script. You will be prompted to enter a research query.
+The script will ensure dependencies are installed (via **uv**) and then execute `main.py`. You will be prompted to enter a research query.
+
+## Quick tool-calling sanity check
+
+To verify Responses API tool-calling is working (cheap, minimal run), run:
+
+```bash
+uv run python .\verify_toolcalling.py
+```
 
 ## Functionality
 

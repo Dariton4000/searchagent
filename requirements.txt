@@ -1,4 +1,3 @@
-lmstudio>=1.3.2
 requests>=2.32.3
 beautifulsoup4>=4.13.4
 ddgs>=9.4.1
@@ -6,3 +5,5 @@ crawl4ai>=0.6.3
 rich>=13.7.1
 pyinstaller
 plyer
+openai>=2.14.0
+python-dotenv>=1.0.1

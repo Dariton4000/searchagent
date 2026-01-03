@@ -1,15 +1,16 @@
 @echo off
 
-echo Activating virtual environment...
-call .venv\Scripts\activate
+REM Check if .venv exists
+if not exist .venv\Scripts\python.exe (
+	echo Virtual environment not found. Please run install.bat first.
+	pause
+	exit /b 1
+)
 
-echo Starting LM-Studio Server
-lms server start
+echo Ensuring dependencies are installed (uv)...
+uv pip install -r requirements.txt --python .venv\Scripts\python.exe
 
 echo Starting the research agent...
-python main.py
-
-echo Deactivating virtual environment...
-deactivate
+.venv\Scripts\python.exe main.py
 
 pause

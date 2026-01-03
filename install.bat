@@ -3,16 +3,11 @@
 echo Creating virtual environment...
 uv venv -p 3.11
 
-
-echo Activating virtual environment...
-call .venv\Scripts\activate
-
-
 echo Installing dependencies...
-uv pip install -r requirements.txt
+uv pip install -r requirements.txt --python .venv\Scripts\python.exe
 
 echo Setting up crawl4ai...
-crawl4ai-setup
+.venv\Scripts\crawl4ai-setup.exe
 
 echo Installation complete.
 pause

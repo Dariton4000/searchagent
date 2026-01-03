@@ -6,14 +6,13 @@ import asyncio
 from ddgs import DDGS
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 import re
-import lmstudio as lms
 import sys
 import os
 import base64
 from urllib.parse import urlparse, parse_qs, unquote
 
-# This will be set by main.py
-chat = None
+# Updated by main.py after each model call (OpenAI Responses API usage object)
+last_usage: dict | None = None
 
 _CONSOLE_TEXT_TRANSLATION = str.maketrans(
     {
@@ -201,13 +200,11 @@ def save_knowledge(knowledge: str) -> str:
     # write back
     with knowledge_file.open("w") as f:
         json.dump(data, f, indent=2)
-    print()
     print(f"Knowledge {next_num} saved: {knowledge}")
     return f"Knowledge {next_num} saved successfully."
 
 def get_all_knowledge() -> list:
     """Returns all entries in the knowledge base."""
-    print()
     print("Retrieving all knowledge entries")
     knowledge_file = Path("research_knowledge") / "knowledge.json"
     if not knowledge_file.exists():
@@ -248,11 +245,8 @@ def crawl4ai(url: str):
     Returns:
         The text content of the page in markdown format.
     """
-    print()
     print(f"Crawling {url}")
     result = asyncio.run(crawl4aiasync(url))
-    model = lms.llm()
-    print(f"Token count: {len(model.tokenize(str(result)))}")
     return result
 
 def duckduckgo_search(search_query: str) -> str:
@@ -264,7 +258,6 @@ def duckduckgo_search(search_query: str) -> str:
     Returns:
         The search results with crawlable links.
     """
-    _safe_print()
     _safe_print(f"Searching DuckDuckGo for: {search_query}")
     try:
         results = list(DDGS().text(search_query, max_results=6))
@@ -283,7 +276,6 @@ def duckduckgo_search(search_query: str) -> str:
 
 
 def get_wikipedia_page(page: str) -> str:
-    # Todo: Add +tokencount in the tokenoverview to better track token usage 
     """        
     Returns:
         Page content as plain text
@@ -298,7 +290,6 @@ def get_wikipedia_page(page: str) -> str:
     Returns:
         Page content as plain text
     """
-    print()
     print(f"Fetching Wikipedia page: {page}")
     
     url = 'https://en.wikipedia.org/w/api.php'
@@ -330,9 +321,6 @@ def get_wikipedia_page(page: str) -> str:
     except Exception as e:
         print(f"Error fetching Wikipedia page: {e}")
         result = f"Error fetching Wikipedia page: {e}"
-
-    model = lms.llm()
-    print(f"Token count: {len(model.tokenize(str(result)))}")
     return result
 
 def create_report(title: str, content: str, sources: list) -> str:
@@ -349,13 +337,11 @@ def create_report(title: str, content: str, sources: list) -> str:
     """
 
     # Validate and sanitize title
-    model = lms.llm()
-    # Context window details
-    current_tokens = len(model.tokenize(str(chat)))
-    context_length = model.get_context_length()
-    total_tokens = current_tokens
-    remaining_percentage = round(((context_length - total_tokens) / context_length) * 100)
-    print(f"{total_tokens}/{context_length} ({remaining_percentage}%)")
+    if last_usage:
+        input_tokens = last_usage.get("input_tokens")
+        output_tokens = last_usage.get("output_tokens")
+        total_tokens = last_usage.get("total_tokens")
+        print(f"Tokens: in={input_tokens} out={output_tokens} total={total_tokens}")
 
     sanitized_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
     if not sanitized_title:
@@ -379,12 +365,12 @@ def create_report(title: str, content: str, sources: list) -> str:
         return error_message
     
 def context_details():
-    # context window details
-    model = lms.llm()
-    token_count = len(model.tokenize(str(chat)))
-    context_length = model.get_context_length()
-    remaining_percentage = round(((context_length - token_count) / context_length) * 100)
-    print()
-    print(f"{token_count}/{context_length} ({remaining_percentage}%)")
-    print("\n")
-    return
+    """Prints the most recent token usage stats (from the OpenAI Responses API)."""
+    if not last_usage:
+        return
+
+    input_tokens = last_usage.get("input_tokens")
+    output_tokens = last_usage.get("output_tokens")
+    total_tokens = last_usage.get("total_tokens")
+
+    print(f"Tokens: in={input_tokens} out={output_tokens} total={total_tokens}")
