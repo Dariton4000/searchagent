@@ -17,7 +17,10 @@ A sophisticated AI-powered research agent that leverages OpenAI's Responses API 
 
 ## Installation
 
+**uv** is a fast Python package and project manager. If you don’t already have it installed, follow the official installation guide: https://docs.astral.sh/uv/getting-started/installation/
+
 1. Run the installation script (Windows):
+
 ```bash
 install.bat
 ```
