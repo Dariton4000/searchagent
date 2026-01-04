@@ -2,20 +2,17 @@
 echo Building SearchAgent...
 
 REM Check if .venv exists
-if exist .venv (
-    echo Activating virtual environment...
-    call .venv\Scripts\activate
-) else (
+if not exist .venv\Scripts\python.exe (
     echo Virtual environment not found. Please run install.bat first.
     pause
     exit /b 1
 )
 
 echo Installing dependencies...
-pip install -r requirements.txt
+uv pip install -r requirements.txt --python .venv\Scripts\python.exe
 
 echo Running PyInstaller...
-pyinstaller --noconfirm --clean SearchAgent.spec
+.venv\Scripts\pyinstaller.exe --noconfirm --clean SearchAgent.spec
 
 echo Build complete!
 echo The executable is located in the "dist" folder.
