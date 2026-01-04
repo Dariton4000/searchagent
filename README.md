@@ -29,6 +29,7 @@ This will:
 - Create a Python 3.11 virtual environment using **uv**
 - Install all dependencies from `requirements.txt`
 - Set up Crawl4AI browser components (Playwright/Patchright)
+- Create a `.env` file with placeholders if one does not already exist (you must fill `OPENAI_API_KEY`)
 
 ## Usage
 
@@ -55,9 +56,22 @@ build.bat
 
 The compiled executable will be available in the `dist/` folder.
 
+### Using the EXE (GitHub Releases)
+
+If you download `SearchAgent.exe` from a GitHub Release, place a `.env` file in the **same folder** as the `.exe`.
+
+- The GitHub build workflow ships a placeholder `.env` alongside the `.exe`.
+- If `.env` is missing, the program will create a placeholder `.env` on first run and tell you where it wrote it.
+
+Then edit `.env` and set `OPENAI_API_KEY`, and rerun `SearchAgent.exe`.
+
 ## Configuration
 
 Set these environment variables in a `.env` file:
+
+> Note: `install.bat` will generate a `.env` file with placeholders if it doesn’t exist yet.
+
+> Note (EXE): On first run, `SearchAgent.exe` will also create a placeholder `.env` next to the executable if one is not present.
 
 ```
 OPENAI_API_KEY=your_api_key_here

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,54 @@ import functions  # leave this import here
 ANSI_GREY = "\033[90m"
 ANSI_GREEN = "\033[92m"
 ANSI_RESET = "\033[0m"
+
+
+_ENV_TEMPLATE = """# OpenAI API key (required)
+OPENAI_API_KEY=
+
+# Optional: model name (default: gpt-5-mini)
+OPENAI_MODEL=gpt-5-mini
+
+# Optional: low | medium | high (default: medium)
+OPENAI_REASONING_EFFORT=medium
+
+# Optional: custom OpenAI-compatible endpoint (leave blank for default)
+OPENAI_BASE_URL=
+"""
+
+
+def _app_dir() -> Path:
+    """Directory to store runtime files like .env.
+
+    - When running as a PyInstaller-built exe, this is the exe's folder.
+    - When running from source, this is the repository folder containing main.py.
+    """
+
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def _ensure_env_file(app_dir: Path) -> Path:
+    env_path = app_dir / ".env"
+    if env_path.exists():
+        return env_path
+
+    try:
+        env_path.write_text(_ENV_TEMPLATE, encoding="utf-8")
+        print(f"Created {env_path}. Set OPENAI_API_KEY, then rerun.")
+        # Stop execution immediately so we don't continue with an empty API key.
+        sys.exit(1)
+    except Exception as e:
+        print(f"Failed to create .env at {env_path}: {e}")
+
+    return env_path
+
+
+def _load_env() -> None:
+    # Explicitly load .env from the app directory (works for both source + EXE).
+    env_path = _ensure_env_file(_app_dir())
+    load_dotenv(dotenv_path=env_path)
 
 
 def _model_name() -> str:
@@ -344,10 +393,11 @@ def researcher(client: OpenAI, query: str) -> None:
 
 
 def main() -> None:
-    load_dotenv()
+    _load_env()
 
     if not os.environ.get("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY is not set. Put it in your .env file, then rerun.")
+        env_path = _app_dir() / ".env"
+        print(f"OPENAI_API_KEY is not set. Put it in {env_path}, then rerun.")
         return
 
     knowledge_dir = Path("research_knowledge")
