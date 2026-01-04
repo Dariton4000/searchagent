@@ -60,7 +60,6 @@ The compiled executable will be available in the `dist/` folder.
 
 If you download `SearchAgent.exe` from a GitHub Release, place a `.env` file in the **same folder** as the `.exe`.
 
-- The GitHub build workflow ships a placeholder `.env` alongside the `.exe`.
 - If `.env` is missing, the program will create a placeholder `.env` on first run and tell you where it wrote it.
 
 Then edit `.env` and set `OPENAI_API_KEY`, and rerun `SearchAgent.exe`.
