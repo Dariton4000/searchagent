@@ -6,6 +6,7 @@ This project is an AI-powered research agent that uses large language models to 
 
 To install the project, run the `install.bat` script. This uses **uv** to create a virtual environment, install dependencies, and set up the necessary browser components for `crawl4ai`.
 
+**uv** is a fast Python package and project manager. If you don’t already have it installed, follow the official installation guide: https://docs.astral.sh/uv/getting-started/installation/
 ```bash
 install.bat
 ```
