@@ -3,7 +3,7 @@ Searchagent is a powerful tool inspired by OpenAI's Deep Research, capable of pe
 ## Features:
 - **Web Search**: Searchagent is capable of performing many web searches to gather surface-level information on a topic using the DuckDuckGo search engine.
 - **Web Scraping**: Searchagent can scrape the content of web pages with crawl4ai, allowing it to extract relevant information from the web.
-- **Choice of Models**: Searchagent supports all OpenAI responses-compatible endpoints, enabeling users to choose from a variety of providers like OpenAI, Azure, and even local models via LM-Studio.
+- **Choice of Models**: Searchagent supports all OpenAI responses-compatible endpoints, enabling users to choose from a variety of providers like OpenAI, Azure, and even local models via LM-Studio.
 
 ## Installation
 Please refer to the [Installation Guide](https://github.com/Dariton4000/searchagent/wiki/Installation) for detailed instructions on how to set up Searchagent.
